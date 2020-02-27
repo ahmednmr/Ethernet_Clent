@@ -11,7 +11,27 @@
 #include <string.h>
 #include "MCAL/UART.h"
 #include <avr/interrupt.h>
-#include "uart.h"
+
+#define MQTT         	   0
+#define HTTP               1
+
+#define Client_ID      "11232siy1weu1e21"        //16 digits
+#define User_Name      "nmr"                     //3 digits
+#define Password       "GXQD8VN78RAISAUH"        //MQTT Key
+
+#define Channel_ID     "996736"                  //Your Channel ID
+#define Write_Key      "RNNN90XKATASUZZG"        //Api Write Key
+#define Data           "5"       				 //Data
+
+#if MQTT
+#define Publish       0
+#define Subscribe     1
+#endif
+
+#if HTTP
+#define Uploade_Data       1
+#define Get_Last_reading   0
+#endif
 
 #define TRUE 1
 #define FALSE 0
@@ -20,9 +40,10 @@ char Rec_Data[DEFAULT_BUFFER_SIZE];
 char Counter=0;
 
 
+char Check_Respond(char * Expected_Respond);
+char Check_Word_in_Respond(char * Word);
+void Clear_REC_Buffer(void);
 
-
-char Check_Respond(char * Expected_Respond,char Respond_Length);
 
 ISR (USART_RXC_vect)
 {
@@ -39,85 +60,191 @@ ISR (USART_RXC_vect)
 
 int main()
 {
-	char i=0,x=128,y=0,z=0,a=0,b=0,c=0,d=0;
+
 
 	DDRD=(1<<PD4);
 	init_UART();
-	uart_init();
 	sei();
 
+	Counter=0;
+
+
+	_delay_ms(3000);
+
 
 	UART_SEND_string("+++");
-	_delay_ms(1000);
+	//	while(!Check_Respond("a"))
+	//	{
+	//		_delay_ms(1);
+	//	}
 
+	_delay_ms(1000);
 	UART_SEND_string("a");
-	_delay_ms(1000);
+	//	while(!Check_Respond("+ok"))
+	//	{
+	//		_delay_ms(1);
+	//	}
 
+	_delay_ms(3000);
 
+	UART_SEND_string("AT+E=ON\r");
+	//	while(!Check_Respond("\r\n+OK\r\n"))
+	//	{
+	//		_delay_ms(1);
+	//	}
+
+	_delay_ms(3000);
 	UART_SEND_string("AT+WANN=DHCP\r\n");
-	_delay_ms(1000);
+	//	while(!Check_Respond("\r\n+OK"))
+	//	{
+	//		_delay_ms(1);
+	//	}
 
-	UART_SEND_string("AT+Z\r\n");
+
 	_delay_ms(3000);
 
-	UART_SEND_string("+++");
-	_delay_ms(1000);
-
-	UART_SEND_string("a");
-	_delay_ms(3000);
-
-
-
+#if HTTP
 	UART_SEND_string("AT+SOCK=TCPC,api.thingspeak.com,80\r\n");
+#endif
+
+#if MQTT
+	UART_SEND_string("AT+SOCK=TCPC,mqtt.thingspeak.com,1883\r\n");
+#endif
+
+	// 	while(!Check_Respond("\r\n+OK"))
+	// 	{
+	// 		_delay_ms(1);
+	// 	}
+
+
+
+	_delay_ms(3000);
+	UART_SEND_string("AT+Z\r");
+	// 	 	while(!Check_Respond("\r\n+OK"))
+	// 	 	{
+	// 	 		_delay_ms(1);
+	// 	 	}
+
+
 	_delay_ms(3000);
 
-	UART_SEND_string("AT+ENTM\r\n");   //AT+CIPSTART="TCP","api.thingspeak.com",80
+#if Uploade_Data
+	UART_SEND_string("GET /update?api_key=");
+	UART_SEND_string(Write_Key);
+
+	UART_SEND_string("&field2=");
+	UART_SEND_string(Data);
+	UART_SEND_string("\r\n");
+
+
+#endif
+
+#if Get_Last_reading
+
+	UART_SEND_string("GET /channels/");
+	UART_SEND_string(Channel_ID);
+	UART_SEND_string("/feeds/last.txt\r\n");
+
 	_delay_ms(3000);
 
+#endif
+
+#if MQTT
+
+	UART_SendChar(0x10);
+	UART_SendChar(0x33);
+	UART_SendChar(0x00);
+	UART_SendChar(0x04);
+	UART_SEND_string("MQTT");
+	UART_SendChar(0x04);
+	UART_SendChar(0xC2);
+	UART_SendChar(0x00);
+	UART_SendChar(0x3C);
+	UART_SendChar(0x00);
+	UART_SendChar(0x10);
+	UART_SEND_string(Client_ID);
+	UART_SendChar(0x00);
+	UART_SendChar(0x03);
+	UART_SEND_string(User_Name);
+	UART_SendChar(0x00);
+	UART_SendChar(0x10);
+	UART_SEND_string(Password);
 
 
 
-	UART_SEND_string("GET /update?api_key=SD5OBD49N5H4O8RY&field2=3\r\n");
-	_delay_ms(3000);
 
+#if Publish
 
-	PORTD |=(1<<PD4);
-	//
-	//		UART_SEND_string("AT+CIPSEND=37\r\n");
-	//		_delay_ms(3000);
-	//
-	//		UART_SEND_string("GET /channels/931047/feeds/last.txt\r\n");
-	//				_delay_ms(3000);
-	//		Check_Respond("\r\nOK\r\n",6);
+	UART_SendChar(0x30);
+	UART_SendChar(0x39);
+	UART_SendChar(0x00);
+	UART_SendChar(0x36);
 
+	UART_SEND_string("channels/");
+	UART_SEND_string(Channel_ID);
+	UART_SEND_string("/publish/fields/field1/");
+	UART_SEND_string(Write_Key);
+	UART_SEND_string(Data);
 
-	return 0;
+#endif
+
+#if Subscribe
+
+	UART_SendChar(0x82);
+	UART_SendChar(0x2c);
+	UART_SendChar(0x00);
+	UART_SendChar(0x0A);
+	UART_SendChar(0x00);
+	UART_SendChar(0x27);
+	UART_SEND_string("channels/");
+	UART_SEND_string(Channel_ID);
+	UART_SEND_string("/subscribe/fields/field1");
+	UART_SendChar(0x00);
+
+#endif
+
+#endif
+
+return 0;
 }
 
 
 
-char Check_Respond(char * Expected_Respond,char Respond_Length)
+char Check_Respond(char * Expected_Respond)
 {
+	char Respond_Length=0;
 
-	Counter=0;
+	Respond_Length=strlen(Expected_Respond);
 
-	uart_TX_string("Respond\r\n");    //For Debug only
-	uart_TX_string(Rec_Data);         //For Debug only
-	uart_TX_string("END\r\n");        //For Debug only
-
-	if(!strncmp(Rec_Data,Expected_Respond, Respond_Length))
+	if(strncmp(Rec_Data,Expected_Respond, Respond_Length)==0)
 	{
-		uart_TX_string("Respond matched\r\n");   //For Debug only
-		memset(Rec_Data,0,Respond_Length);
+		Clear_REC_Buffer();
 		return TRUE;
 	}
-
-	memset(Rec_Data,0,Respond_Length);
 	return FALSE;
 
 
 }
 
+
+char Check_Word_in_Respond(char * Word)
+{
+
+
+	if(strstr(Rec_Data,Word) != 0)
+	{
+		Clear_REC_Buffer();
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+void Clear_REC_Buffer(void)
+{
+	Counter=0;
+	memset(Rec_Data,0,DEFAULT_BUFFER_SIZE);
+}
 
 
 
